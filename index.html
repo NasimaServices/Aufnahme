@@ -1234,23 +1234,24 @@ async function generatePDF() {
 
   // Draw a section header bar - returns new y after bar
   const bar=(x,y,w,label)=>{
-    fc(...DARK2);doc.rect(x,y,w,8,'F');
-    fc(...LIME);doc.rect(x,y,3,8,'F');
-    bf(7.5,'bold');tc(...LIME);
-    doc.text(label,x+6,y+5.5);
-    return y+10;
+    fc(...DARK2);doc.rect(x,y,w,9,'F');
+    fc(...LIME);doc.rect(x,y,3,9,'F');
+    bf(8,'bold');tc(...LIME);
+    doc.text(label,x+7,y+6.2);
+    return y+13;
   };
 
   // Draw label+value row, returns height used
   const row=(x,y,w,label,value,lw=42)=>{
     if(!value) return 0;
-    const vw=w-lw-2;
+    const PAD=4; // inner horizontal padding
+    const vw=w-lw-PAD*2;
     bf(7.5,'normal');
-    tc(...ASH);doc.text(label+':',x+2,y);
+    tc(...ASH);doc.text(label+':',x+PAD,y);
     tc(...CREAM);
     const lines=doc.splitTextToSize(String(value),vw);
-    doc.text(lines,x+lw+vw,y,{align:'right'});
-    return Math.max(6,lines.length*5.5);
+    doc.text(lines,x+w-PAD,y,{align:'right'});
+    return Math.max(6.5,lines.length*6);
   };
 
   for(let pi=0;pi<all.length;pi++){
@@ -1347,14 +1348,14 @@ async function generatePDF() {
       const cellW=CW/3;
       let mx=ML, mrow=y;
       masseItems.forEach(([val,lbl],i)=>{
-        if(i>0 && i%3===0){mrow+=12;mx=ML;}
-        bf(7,'normal');tc(...ASH);doc.text(lbl+':',mx+2,mrow);
-        bf(8.5,'bold');tc(...CREAM);
+        if(i>0 && i%3===0){mrow+=14;mx=ML;}
+        bf(7.5,'normal');tc(...ASH);doc.text(lbl+':',mx+4,mrow);
+        bf(9,'bold');tc(...CREAM);
         const unit=(lbl==='Anzahl')?'':' mm';
-        doc.text(val+unit,mx+cellW-3,mrow,{align:'right'});
+        doc.text(val+unit,mx+cellW-4,mrow,{align:'right'});
         mx+=cellW;
       });
-      y=mrow+14;
+      y=mrow+16;
     }
 
     // ── 2-COLUMN SECTIONS ──
@@ -1372,7 +1373,7 @@ async function generatePDF() {
     let ly=bar(ML,y,COL,'FASSADE & KONSTRUKTION');
     [['Fassadenfarbe',fassadenfarbe],['Material',material],['Logofarbe',logofarbe],['Schriftfarbe',schriftfarbe],['UKO',uko],['UKO Detail',ukoDetail]].forEach(([lbl,val])=>{
       const h=row(ML,ly,COL,lbl,val,40);
-      if(h)ly+=h+1;
+      if(h)ly+=h+3;
     });
 
     // RIGHT: LOGO & TECHNIK
@@ -1390,10 +1391,10 @@ async function generatePDF() {
     let ry2=bar(C2X,y,COL,'LOGO & TECHNIK');
     [['Logo-Typ',logotyp],['Strom',strom],['Trafo',trafoStr],['Trafo Typ',trafoTyp],['Steuerung',steuerung],['Leuchtmittel',leuchtm],['Kabelführung',kabel],['IP-Schutz',ip]].forEach(([lbl,val])=>{
       const h=row(C2X,ry2,COL,lbl,val,38);
-      if(h)ry2+=h+1;
+      if(h)ry2+=h+3;
     });
 
-    y=Math.max(ly,ry2)+6;
+    y=Math.max(ly,ry2)+10;
 
     // ── BESONDERHEITEN ──
     const beson=getF(o,'besonderheiten','beson','bes');
@@ -1401,16 +1402,16 @@ async function generatePDF() {
     if(beson||mass){
       y=bar(ML,y,CW,'BESONDERHEITEN & MASSNAHMEN');
       if(beson){
-        bf(7.5,'bold');tc(...ASH);doc.text('Besonderheiten:',ML+2,y);y+=5.5;
-        bf(8,'normal');tc(...CREAM);
-        const ls=doc.splitTextToSize(beson,CW-4);
-        doc.text(ls,ML+2,y);y+=ls.length*5.5+4;
+        bf(8,'bold');tc(...ASH);doc.text('Besonderheiten:',ML+4,y);y+=6;
+        bf(8.5,'normal');tc(...CREAM);
+        const ls=doc.splitTextToSize(beson,CW-8);
+        doc.text(ls,ML+4,y);y+=ls.length*6+5;
       }
       if(mass){
-        bf(7.5,'bold');tc(...ASH);doc.text('Massnahmen:',ML+2,y);y+=5.5;
-        bf(8,'normal');tc(...CREAM);
-        const ls=doc.splitTextToSize(mass,CW-4);
-        doc.text(ls,ML+2,y);y+=ls.length*5.5+4;
+        bf(8,'bold');tc(...ASH);doc.text('Massnahmen:',ML+4,y);y+=6;
+        bf(8.5,'normal');tc(...CREAM);
+        const ls=doc.splitTextToSize(mass,CW-8);
+        doc.text(ls,ML+4,y);y+=ls.length*6+5;
       }
       y+=2;
     }
