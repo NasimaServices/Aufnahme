@@ -1210,74 +1210,91 @@ function updateExport() {
 async function generatePDF() {
   const {jsPDF}=window.jspdf; if(!jsPDF){alert('jsPDF fehlt');return;}
 
-  const getF = (o,...keys) => { for(const k of keys){ const v=o[k]; if(v!==undefined && v!==null && v!=='') return String(v); } return ''; };
-
-  const filterS = gv('exp-filter')||gv('expf')||'';
-  const fname = (gv('exp-filename')||gv('expfn')||'Signage-Aufnahme')+'.pdf';
-  const vonStr = gv('exp-von')||gv('expvon')||'Nasima Services';
-  const datStr = gv('exp-datum')||gv('expdat')||new Date().toISOString().split('T')[0];
-
-  let recs = filterS ? DB.filter(r=>(r.standort||r.st)===filterS) : DB;
-  const all = recs.flatMap(r=>{ const objs=r.objekte||r.objs||[]; return objs.map(o=>({r,o})); });
-
+  const getF=(o,...keys)=>{for(const k of keys){const v=o[k];if(v!==undefined&&v!==null&&v!=='')return String(v);}return '';};
+  const filterS=gv('exp-filter')||gv('expf')||'';
+  const fname=(gv('exp-filename')||gv('expfn')||'Signage-Aufnahme')+'.pdf';
+  const vonStr=gv('exp-von')||gv('expvon')||'Nasima Services';
+  const datStr=gv('exp-datum')||gv('expdat')||new Date().toISOString().split('T')[0];
+  let recs=filterS?DB.filter(r=>(r.standort||r.st)===filterS):DB;
+  const all=recs.flatMap(r=>{const objs=r.objekte||r.objs||[];return objs.map(o=>({r,o}));});
   if(!all.length){showNotif('Keine Daten','var(--gold)');return;}
   showNotif('PDF wird erstellt...','var(--gold)');
 
-  const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const W=210, H=297, ML=12, MR=12;
-  const CW = W-ML-MR; // content width = 186mm
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const W=210,H=297,ML=12,MR=12,CW=W-ML-MR;
 
-  const LIME=[183,187,0], DARK=[26,26,24], DARK2=[40,40,36], DARK3=[55,55,50];
-  const ASH=[140,140,120], WHITE=[255,255,255], CREAM=[215,212,205], LGRAY=[180,178,170];
+  // HELLES FARBSCHEMA - druckfreundlich
+  const LIME=[160,163,0],       // Nasima Lime (etwas dunkler für hellen Hintergrund)
+        WHITE=[255,255,255],
+        BG=[250,250,248],        // Seitenhintergrund: fast weiss
+        PANEL=[241,241,238],     // Sektionshintergrund: hellgrau
+        PANEL2=[232,232,228],    // etwas dunklerer Panel
+        DARK=[30,30,28],         // Überschriften: fast schwarz
+        MID=[80,80,70],          // Labels: dunkelgrau
+        VAL=[20,20,18],          // Werte: schwarz
+        LIME_BG=[235,237,180],   // Lime-heller Hintergrund für Header
+        BORDER=[200,200,195];    // Trennlinien
 
   const tc=(...a)=>doc.setTextColor(...a);
   const fc=(...a)=>doc.setFillColor(...a);
-  const bf=(size,style='normal')=>{doc.setFont('helvetica',style);doc.setFontSize(size);};
+  const sc=(...a)=>doc.setDrawColor(...a);
+  const bf=(sz,st='normal')=>{doc.setFont('helvetica',st);doc.setFontSize(sz);};
 
-  // Draw a section header bar - returns new y after bar
+  // Sektions-Header (helles Design)
   const bar=(x,y,w,label)=>{
-    fc(...DARK2);doc.rect(x,y,w,9,'F');
+    fc(...PANEL2);doc.rect(x,y,w,9,'F');
     fc(...LIME);doc.rect(x,y,3,9,'F');
-    bf(8,'bold');tc(...LIME);
-    doc.text(label,x+7,y+6.2);
+    sc(...BORDER);doc.setLineWidth(0.2);doc.rect(x,y,w,9,'S');
+    bf(8,'bold');tc(...DARK);
+    doc.text(label,x+7,y+6.4);
     return y+13;
   };
 
-  // Draw label+value row, returns height used
-  const row=(x,y,w,label,value,lw=42)=>{
-    if(!value) return 0;
-    const PAD=4; // inner horizontal padding
-    const vw=w-lw-PAD*2;
-    bf(7.5,'normal');
-    tc(...ASH);doc.text(label+':',x+PAD,y);
-    tc(...CREAM);
-    const lines=doc.splitTextToSize(String(value),vw);
-    doc.text(lines,x+w-PAD,y,{align:'right'});
-    return Math.max(6.5,lines.length*6);
+  // Neue Seite
+  const newPage=()=>{
+    doc.addPage();
+    fc(...BG);doc.rect(0,0,W,H,'F');
+    return 18;
   };
+
+  // Datenzeile: Label links grau, Wert rechts schwarz fett
+  const row=(x,y,w,label,value,lw=48)=>{
+    if(!value&&value!==0)return 0;
+    const vw=w-lw-4;
+    bf(8,'normal');tc(...MID);
+    doc.text(label+':',x+3,y);
+    bf(8,'bold');tc(...VAL);
+    const lines=doc.splitTextToSize(String(value),vw);
+    doc.text(lines,x+w-3,y,{align:'right'});
+    // Feine Trennlinie
+    sc(...BORDER);doc.setLineWidth(0.15);
+    doc.line(x,y+2.5,x+w,y+2.5);
+    return Math.max(8,lines.length*7.5);
+  };
+
+  // Platz prüfen
+  const safeY=(y,needed=20)=>{ if(y+needed>H-18) return newPage(); return y; };
 
   for(let pi=0;pi<all.length;pi++){
     const {r,o}=all[pi];
-    if(pi>0)doc.addPage();
+    if(pi>0){doc.addPage();}
+    fc(...BG);doc.rect(0,0,W,H,'F');
 
-    // BACKGROUND
-    fc(...DARK);doc.rect(0,0,W,H,'F');
+    // ── HEADER ──
+    fc(...LIME);doc.rect(0,0,W,14,'F');
+    bf(9,'bold');tc(...WHITE);doc.text('NASIMA SERVICES',ML,9.5);
+    bf(7,'normal');tc(...WHITE);
+    doc.text('Signage Survey  ·  '+vonStr+'  ·  '+fmtDate(datStr)+'  ·  Seite '+(pi+1)+'/'+all.length,W-MR,9.5,{align:'right'});
 
-    // HEADER BAND
-    fc(...LIME);doc.rect(0,0,W,13,'F');
-    bf(8.5,'bold');tc(...DARK);doc.text('NASIMA SERVICES',ML,9);
-    bf(7,'normal');
-    doc.text('Signage Survey  ·  '+vonStr+'  ·  '+fmtDate(datStr)+'  ·  Seite '+(pi+1)+'/'+all.length, W-MR,9,{align:'right'});
+    let y=20;
 
-    let y=19;
-
-    // TITLE BLOCK
-    fc(...DARK2);doc.roundedRect(ML,y,CW,24,2,2,'F');
+    // ── TITELBLOCK ──
+    fc(...LIME_BG);doc.roundedRect(ML,y,CW,24,2,2,'F');
+    sc(...LIME);doc.setLineWidth(0.4);doc.roundedRect(ML,y,CW,24,2,2,'S');
     fc(...LIME);doc.rect(ML,y,4,24,'F');
-
     const standort=getF(r,'standort','st');
     const position=getF(o,'position','pos');
-    bf(14,'bold');tc(...WHITE);doc.text(standort,ML+8,y+10);
+    bf(14,'bold');tc(...DARK);doc.text(standort,ML+8,y+10);
     bf(10,'normal');tc(...LIME);doc.text(position,ML+8,y+19);
 
     const adresse=getF(r,'adresse','adr');
@@ -1288,121 +1305,102 @@ async function generatePDF() {
     const gps=getF(r,'gps');
     const addrLine=[adresse,ort].filter(Boolean).join(', ');
 
-    bf(7.5,'normal');tc(...ASH);
-    if(addrLine)doc.text(addrLine,W-MR-2,y+8,{align:'right'});
-    doc.text(fmtDate(datum)+(person?'  ·  '+person:'')+(projekt?'  ·  '+projekt:''),W-MR-2,y+14,{align:'right'});
-    if(gps){tc(183,187,0);doc.text('GPS: '+gps,W-MR-2,y+20,{align:'right'});}
+    bf(7.5,'normal');tc(...MID);
+    if(addrLine) doc.text(addrLine,W-MR-2,y+8,{align:'right'});
+    doc.text(fmtDate(datum)+(person?'  ·  '+person:'')+(projekt?'  ·  '+projekt:''),W-MR-2,y+15,{align:'right'});
+    if(gps){tc(...LIME);doc.text('GPS: '+gps,W-MR-2,y+21,{align:'right'});}
     y+=30;
 
-    // ── FOTO + SKIZZE (nebeneinander, je halbe Breite) ──
-    const HALF=(CW-4)/2; // ~91mm each
-    const IH=72;
+    // ── FOTO + SKIZZE ──
+    const HALF=(CW-4)/2,IH=70;
 
-    // FOTO box
-    fc(45,45,41);doc.roundedRect(ML,y,HALF,IH,2,2,'F');
+    // Foto-Rahmen
+    sc(...BORDER);doc.setLineWidth(0.3);
+    fc(...PANEL);doc.roundedRect(ML,y,HALF,IH,2,2,'FD');
     const fotos=o.fotos||o.photos||[];
     if(fotos.length){
-      try{
-        const du=fotos[0];
-        const fmt=du.startsWith('data:image/png')?'PNG':'JPEG';
-        doc.addImage(du,fmt,ML+1,y+1,HALF-2,IH-2,undefined,'FAST');
-      }catch(e){tc(...ASH);bf(8);doc.text('Foto fehler',ML+HALF/2,y+IH/2,{align:'center'});}
+      try{const du=fotos[0],fmt=du.startsWith('data:image/png')?'PNG':'JPEG';doc.addImage(du,fmt,ML+1,y+1,HALF-2,IH-2,undefined,'FAST');}catch(e){}
       if(fotos.length>1){
-        fc(...DARK);doc.roundedRect(ML+HALF-24,y+IH-12,23,10,2,2,'F');
-        tc(...LIME);bf(7);doc.text('+'+( fotos.length-1)+' Fotos',ML+HALF-12,y+IH-5.5,{align:'center'});
+        fc(...LIME);doc.roundedRect(ML+HALF-28,y+IH-13,27,11,2,2,'F');
+        bf(7,'bold');tc(...WHITE);doc.text('+'+( fotos.length-1)+' Foto'+(fotos.length>2?'s':''),ML+HALF-14,y+IH-6,{align:'center'});
       }
-    } else {
-      tc(...ASH);bf(9);doc.text('Kein Foto',ML+HALF/2,y+IH/2,{align:'center'});
-    }
+    }else{tc(...MID);bf(9);doc.text('Kein Foto',ML+HALF/2,y+IH/2,{align:'center'});}
 
-    // SKIZZE box
+    // Skizze-Rahmen
     const SX=ML+HALF+4;
+    fc(...WHITE);doc.roundedRect(SX,y,HALF,IH,2,2,'FD');
     const skizze=getF(o,'skizze','sketch');
-    if(skizze && skizze.length>200){
-      // White bg for sketch
-      fc(252,252,250);doc.roundedRect(SX,y,HALF,IH,2,2,'F');
+    if(skizze&&skizze.length>200){
       try{doc.addImage(skizze,'PNG',SX+1,y+1,HALF-2,IH-2,undefined,'FAST');}catch(e){}
-    } else {
-      fc(...DARK3);doc.roundedRect(SX,y,HALF,IH,2,2,'F');
-      tc(...ASH);bf(8.5);doc.text('Keine Skizze',SX+HALF/2,y+IH/2,{align:'center'});
+    }else{
+      fc(...PANEL);doc.roundedRect(SX,y,HALF,IH,2,2,'F');
+      tc(...MID);bf(8.5);doc.text('Keine Skizze',SX+HALF/2,y+IH/2,{align:'center'});
     }
 
-    // labels under images
-    bf(6.5,'normal');tc(...ASH);
-    doc.text('FOTO'+(fotos.length>1?' ('+fotos.length+' Fotos)':''),ML+HALF/2,y+IH+5,{align:'center'});
-    doc.text('SKIZZE UNTERKONSTRUKTION',SX+HALF/2,y+IH+5,{align:'center'});
+    bf(6.5,'normal');tc(...MID);
+    doc.text('FOTO'+(fotos.length>1?' ('+fotos.length+' Fotos)':''),ML+HALF/2,y+IH+5.5,{align:'center'});
+    doc.text('SKIZZE UNTERKONSTRUKTION',SX+HALF/2,y+IH+5.5,{align:'center'});
+    y+=IH+10;
 
-    y+=IH+9;
-
-    // ── ZUSÄTZLICHE FOTOS (kleine Thumbnails) ──
+    // ── WEITERE FOTOS ──
     if(fotos.length>1){
-      const TW=42, TH=32, TGAP=4;
-      const maxPerRow=Math.floor(CW/(TW+TGAP));
-      const extraFotos=fotos.slice(1,Math.min(fotos.length,7)); // max 6 extra
-      let tx=ML, ty=y;
-      extraFotos.forEach((du,fi)=>{
-        if(fi>0 && fi%maxPerRow===0){ty+=TH+TGAP+2;tx=ML;}
-        fc(45,45,41);doc.roundedRect(tx,ty,TW,TH,1,1,'F');
-        try{
-          const fmt=du.startsWith('data:image/png')?'PNG':'JPEG';
-          doc.addImage(du,fmt,tx+1,ty+1,TW-2,TH-2,undefined,'FAST');
-        }catch(e){}
+      y=safeY(y,38);
+      const TW=40,TH=30,TGAP=3;
+      const extra=fotos.slice(1,Math.min(fotos.length,7));
+      const perRow=Math.floor(CW/(TW+TGAP));
+      let tx=ML,ty=y;
+      extra.forEach((du,fi)=>{
+        if(fi>0&&fi%perRow===0){ty+=TH+TGAP+2;tx=ML;}
+        fc(...PANEL);sc(...BORDER);doc.setLineWidth(0.2);doc.roundedRect(tx,ty,TW,TH,1,1,'FD');
+        try{const fmt=du.startsWith('data:image/png')?'PNG':'JPEG';doc.addImage(du,fmt,tx+1,ty+1,TW-2,TH-2,undefined,'FAST');}catch(e){}
         tx+=TW+TGAP;
       });
-      const extraRows=Math.ceil(extraFotos.length/maxPerRow);
-      y+=extraRows*(TH+TGAP)+6;
-      bf(6.5,'normal');tc(...ASH);
-      doc.text('WEITERE FOTOS ('+extraFotos.length+')',ML,y-3);
-      y+=3;
+      const rows=Math.ceil(extra.length/perRow);
+      y+=rows*(TH+TGAP)+8;
+      bf(6.5,'normal');tc(...MID);doc.text('WEITERE FOTOS',ML,y-4);
     }
 
-    // ── MASSE (volle Breite, kompakte Tabelle) ──
+    // ── MASSE ──
     const breite=getF(o,'breite','bw','b');
     const hoehe=getF(o,'hoehe','bh','h');
     const tiefe=getF(o,'tiefe','bt','t');
     const montageh=getF(o,'montageh','mh');
     const buchstH=getF(o,'buchstabe','bhh');
     const anzahl=getF(o,'anzahl','az');
-
     const masseItems=[[breite,'Breite'],[hoehe,'Höhe'],[tiefe,'Tiefe'],[montageh,'Montagehöhe'],[buchstH,'Buchst.-Höhe'],[anzahl,'Anzahl']].filter(p=>p[0]);
-
     if(masseItems.length){
+      y=safeY(y,30);
       y=bar(ML,y,CW,'MASSE');
-      // Draw as horizontal grid, max 3 per row
-      const cellW=CW/3;
-      let mx=ML, mrow=y;
+      const cellW=CW/3;let mx=ML,mrow=y;
       masseItems.forEach(([val,lbl],i)=>{
-        if(i>0 && i%3===0){mrow+=14;mx=ML;}
-        bf(7.5,'normal');tc(...ASH);doc.text(lbl+':',mx+4,mrow);
-        bf(9,'bold');tc(...CREAM);
-        const unit=(lbl==='Anzahl')?'':' mm';
-        doc.text(val+unit,mx+cellW-4,mrow,{align:'right'});
+        if(i>0&&i%3===0){mrow+=13;mx=ML;}
+        bf(7.5,'normal');tc(...MID);doc.text(lbl+':',mx+3,mrow);
+        bf(9,'bold');tc(...VAL);
+        doc.text(val+(lbl==='Anzahl'?'':' mm'),mx+cellW-3,mrow,{align:'right'});
         mx+=cellW;
       });
       y=mrow+16;
     }
 
-    // ── 2-COLUMN SECTIONS ──
-    const COL=(CW-4)/2;
-    const C2X=ML+COL+4;
-
-    // LEFT: FASSADE & KONSTRUKTION
+    // ── FASSADE & KONSTRUKTION ──
     const fassadenfarbe=getF(o,'farbe','ff','fassadenfarbe');
     const material=getF(o,'material','mat');
     const logofarbe=getF(o,'logofarbe','lf');
     const schriftfarbe=getF(o,'schriftfarbe','scf','sf');
     const uko=getF(o,'uko');
     const ukoDetail=getF(o,'ukoDetail','ukd');
+    const fRows=[['Fassadenfarbe',fassadenfarbe],['Material',material],['Logofarbe',logofarbe],['Schriftfarbe',schriftfarbe],['UKO',uko],['UKO Detail',ukoDetail]].filter(r=>r[1]);
+    if(fRows.length){
+      y=safeY(y,25);y=bar(ML,y,CW,'FASSADE & KONSTRUKTION');
+      fRows.forEach(([lbl,val])=>{y=safeY(y,10);const h=row(ML,y,CW,lbl,val,52);if(h)y+=h+1;});
+      y+=5;
+    }
 
-    let ly=bar(ML,y,COL,'FASSADE & KONSTRUKTION');
-    [['Fassadenfarbe',fassadenfarbe],['Material',material],['Logofarbe',logofarbe],['Schriftfarbe',schriftfarbe],['UKO',uko],['UKO Detail',ukoDetail]].forEach(([lbl,val])=>{
-      const h=row(ML,ly,COL,lbl,val,40);
-      if(h)ly+=h+3;
-    });
-
-    // RIGHT: LOGO & TECHNIK
+    // ── LOGO & TECHNIK ──
     const logotyp=getF(o,'logotyp','lt');
     const strom=getF(o,'strom','sv');
+    const kabeleinlass=getF(o,'kez');
+    const ledfarbe=getF(o,'ledc');
     const trafoW=getF(o,'trafoLeistung','tw');
     const trafoV=getF(o,'trafoVolt','tv');
     const trafoTyp=getF(o,'trafoTyp','tt');
@@ -1411,79 +1409,65 @@ async function generatePDF() {
     const kabel=getF(o,'kabel','kab');
     const ip=getF(o,'ip');
     const trafoStr=trafoW?(trafoW+' W'+(trafoV?' / '+trafoV+' V':'')):null;
+    const tRows=[['Logo-Typ',logotyp],['Strom',strom],['Kabeleinlass',kabeleinlass],['LED Farbe',ledfarbe],['Trafo',trafoStr],['Trafo Typ',trafoTyp],['Steuerung',steuerung],['Leuchtmittel',leuchtm],['Kabelführung',kabel],['IP-Schutz',ip]].filter(r=>r[1]);
+    if(tRows.length){
+      y=safeY(y,25);y=bar(ML,y,CW,'LOGO & TECHNIK');
+      tRows.forEach(([lbl,val])=>{y=safeY(y,10);const h=row(ML,y,CW,lbl,val,52);if(h)y+=h+1;});
+      y+=5;
+    }
 
-    let ry2=bar(C2X,y,COL,'LOGO & TECHNIK');
-    [['Logo-Typ',logotyp],['Strom',strom],['Kabeleinlass',getF(o,'kez')],['LED Farbe',getF(o,'ledc')],['Trafo',trafoStr],['Trafo Typ',trafoTyp],['Steuerung',steuerung],['Leuchtmittel',leuchtm],['Kabelführung',kabel],['IP-Schutz',ip]].forEach(([lbl,val])=>{
-      const h=row(C2X,ry2,COL,lbl,val,38);
-      if(h)ry2+=h+3;
-    });
-
-    y=Math.max(ly,ry2)+10;
-
-    // ── BESONDERHEITEN ──
+    // ── BESONDERHEITEN & MASSNAHMEN ──
     const beson=getF(o,'besonderheiten','beson','bes');
     const mass=getF(o,'massnahmen','mass','mas');
     if(beson||mass){
-      y=bar(ML,y,CW,'BESONDERHEITEN & MASSNAHMEN');
-      const drawText=(label,text,startY)=>{
-        let cy=startY;
-        // Check if we need a new page
-        if(cy > H-50){ doc.addPage(); fc(...DARK);doc.rect(0,0,W,H,'F'); cy=20; }
-        bf(8,'bold');tc(...ASH);doc.text(label,ML+4,cy);cy+=6;
-        bf(8.5,'normal');tc(...CREAM);
-        const ls=doc.splitTextToSize(text,CW-8);
-        // Check again after splitting
-        if(cy+ls.length*6 > H-20){
-          const fitLines=Math.floor((H-25-cy)/6);
-          if(fitLines>0) doc.text(ls.slice(0,fitLines),ML+4,cy);
-          doc.addPage(); fc(...DARK);doc.rect(0,0,W,H,'F');
-          cy=20;
-          if(fitLines<ls.length) doc.text(ls.slice(fitLines),ML+4,cy);
-          cy+=Math.max(0,ls.length-fitLines)*6+5;
-        } else {
-          doc.text(ls,ML+4,cy);cy+=ls.length*6+5;
-        }
-        return cy;
-      };
-      if(beson) y=drawText('Besonderheiten:',beson,y);
-      if(mass)  y=drawText('Massnahmen:',mass,y);
-      y+=2;
+      y=safeY(y,25);y=bar(ML,y,CW,'BESONDERHEITEN & MASSNAHMEN');
+      if(beson){
+        y=safeY(y,14);
+        bf(7.5,'bold');tc(...MID);doc.text('Besonderheiten:',ML+3,y);y+=6;
+        bf(8.5,'normal');tc(...VAL);
+        const ls=doc.splitTextToSize(beson,CW-6);
+        ls.forEach(line=>{y=safeY(y,8);doc.text(line,ML+3,y);y+=6.5;});
+        y+=3;
+      }
+      if(mass){
+        y=safeY(y,14);
+        bf(7.5,'bold');tc(...MID);doc.text('Massnahmen:',ML+3,y);y+=6;
+        bf(8.5,'normal');tc(...VAL);
+        const ls=doc.splitTextToSize(mass,CW-6);
+        ls.forEach(line=>{y=safeY(y,8);doc.text(line,ML+3,y);y+=6.5;});
+        y+=3;
+      }
+      y+=3;
     }
 
     // ── PRIORITÄT & KOSTEN ──
     const prio=getF(o,'prioritaet','prio','pri');
     const kost=getF(o,'kosten','kost','kos');
     if(prio||kost){
+      y=safeY(y,14);
       if(prio){
-        const pc=prio==='Hoch'?[210,35,25]:prio==='Mittel'?[210,150,0]:[45,145,55];
-        fc(...pc);doc.roundedRect(ML,y,55,10,2,2,'F');
+        const pc=prio==='Hoch'?[210,35,25]:prio==='Mittel'?[200,140,0]:[40,140,50];
+        fc(...pc);doc.roundedRect(ML,y,58,10,2,2,'F');
         bf(8,'bold');tc(...WHITE);doc.text('PRIORITÄT: '+prio,ML+4,y+7);
       }
       if(kost){
-        fc(...DARK2);doc.roundedRect(ML+59,y,60,10,2,2,'F');
-        fc(...LIME);doc.rect(ML+59,y,3,10,'F');
-        bf(8,'bold');tc(...LIME);doc.text('CHF '+kost+'.—  (ca.)',ML+65,y+7);
+        fc(...LIME);doc.roundedRect(ML+62,y,65,10,2,2,'F');
+        bf(8,'bold');tc(...WHITE);doc.text('CHF '+kost+'.—  (ca.)',ML+66,y+7);
       }
       y+=14;
     }
 
     // ── FOOTER ──
-    // If content is near bottom, ensure footer doesn't overlap
-    if(y > H-30) y = H-30;
-    fc(20,20,18);doc.rect(0,H-13,W,13,'F');
+    fc(...PANEL2);doc.rect(0,H-13,W,13,'F');
     fc(...LIME);doc.rect(0,H-13,W,1,'F');
-    bf(6.5,'normal');tc(...ASH);
-    doc.text('Nasima Services  ·  NeonThaler Werbetechnik AG  ·  Zürich  ·  WIR MACHEN SIE SICHTBAR.',ML,H-6);
+    bf(6.5,'normal');tc(...MID);
+    doc.text('Nasima Services  ·  NeonThaler Werbetechnik AG  ·  Wangen SZ  ·  +41 44 711 75 55  ·  WIR MACHEN SIE SICHTBAR.',ML,H-6);
     doc.text('ID: '+r.id,W-MR,H-6,{align:'right'});
   }
 
   doc.save(fname);
   showNotif('PDF heruntergeladen!');
 }
-
-// =========================================================
-// HELPERS
-// =========================================================
 function fmtDate(d){
   if(!d) return '';
   try{const p=d.split('-');return p[2]+'.'+p[1]+'.'+p[0];}catch{return d;}
