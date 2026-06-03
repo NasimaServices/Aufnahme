@@ -366,7 +366,7 @@ body{font-family:'DM Sans',sans-serif;background:#1a1a18;color:#f0ede6;min-heigh
           <div class="form-group"><label>Strasse / Hausnummer</label><input type="text" id="f-adresse" placeholder="Musterstrasse 10" oninput="updateProgress()"></div>
           <div class="form-group"><label>PLZ / Ort</label><input type="text" id="f-ort" placeholder="8200 Schaffhausen" oninput="updateProgress()"></div>
           <div class="form-group"><label>Aufnahmedatum *</label><input type="date" id="f-datum" oninput="updateProgress()"></div>
-          <div class="form-group"><label>Aufgenommen von</label><input type="text" id="f-person" placeholder="Name"></div>
+          <div class="form-group"><label>Aufgenommen von</label><select id="f-person"><option value="">— auswählen —</option><option>Marco Cassani</option><option>Hans Zwahlen</option></select></div>
           <div class="form-group"><label>Projektnummer</label><input type="text" id="f-projekt" placeholder="NS-2025-042"></div>
           <div class="form-group"><label>GPS-Koordinaten</label><input type="text" id="f-gps" placeholder="47.6779, 8.6330" readonly style="color:var(--lime);"></div>
         </div>
@@ -715,10 +715,12 @@ function buildObjHTML(oid) {
   <div class="card-body">
     <div class="form-grid fg2">
       <div class="form-group"><label>Stromversorgung</label><select id="${oid}-sv"><option value="">— w&auml;hlen —</option><option>Ja, Anschluss vorhanden</option><option>Nein, muss verlegt werden</option><option>Steuerleitung vorhanden</option><option>Nicht relevant (unbeleuchtet)</option></select></div>
+      <div class="form-group"><label>Kabeleinlass Zuleitung</label><input type="text" id="${oid}-kez" placeholder="z.B. von unten, Ø20mm, links"></div>
+      <div class="form-group"><label>LED Farbe</label><select id="${oid}-ledc"><option value="">— wählen —</option><option>Warmweiss 2700K</option><option>Warmweiss 3000K</option><option>Neutralweiss 4000K</option><option>Kaltweiss 6000K</option><option>RGB</option><option>RGBW</option><option>Rot</option><option>Grün</option><option>Blau</option><option>Gelb</option><option>Sonstiges</option></select></div>
       <div class="form-group"><label>Trafo Leistung (W)</label><div class="masse-wrap"><input type="number" id="${oid}-tw" placeholder="150" min="0"><span class="masse-unit">W</span></div></div>
       <div class="form-group"><label>Trafo Spannung (V)</label><div class="masse-wrap"><input type="number" id="${oid}-tv" placeholder="24" min="0"><span class="masse-unit">V</span></div></div>
       <div class="form-group"><label>Trafo Typ / Hersteller</label><input type="text" id="${oid}-tt" placeholder="z.B. Mean Well HLG-150H-24A"></div>
-      <div class="form-group"><label>Steuerung</label><select id="${oid}-ste"><option value="">— w&auml;hlen —</option><option>Manuelle Ein/Aus</option><option>Zeitschaltuhr</option><option>D&auml;mmerungsschalter</option><option>Geb&auml;udeleitsystem</option><option>Nicht relevant</option></select></div>
+      <div class="form-group"><label>Steuerung</label><select id="${oid}-ste"><option value="">— w&auml;hlen —</option><option>Manuelle Ein/Aus</option><option>Zeitschaltuhr</option><option>D&auml;mmerungsschalter</option><option>DALI</option><option>KNX</option><option>Geb&auml;udeleitsystem</option><option>Nicht relevant</option></select></div>
       <div class="form-group"><label>Leuchtmittel</label><select id="${oid}-lm"><option value="">— w&auml;hlen —</option><option>LED-Module</option><option>LED-Streifen</option><option>Neonr&ouml;hre (klassisch)</option><option>Leuchtstoffr&ouml;hre</option><option>Keines</option><option>Unbekannt</option></select></div>
       <div class="form-group"><label>Kabelführung</label><select id="${oid}-kab"><option value="">— w&auml;hlen —</option><option>Unter Putz / verdeckt</option><option>Auf Putz / sichtbar</option><option>Im Kabelkanal</option><option>&Uuml;ber Fassade gef&uuml;hrt</option><option>Nicht vorhanden</option></select></div>
       <div class="form-group"><label>Schutzklasse / IP</label><input type="text" id="${oid}-ip" placeholder="z.B. IP65"></div>
@@ -745,7 +747,7 @@ function fillObjFields(oid, o) {
   sv(oid+'-pos', o.pos); sv(oid+'-b', o.b); sv(oid+'-h', o.h); sv(oid+'-t', o.t);
   sv(oid+'-mh', o.mh); sv(oid+'-bh', o.bh); sv(oid+'-az', o.az);
   sv(oid+'-ff', o.ff); sv(oid+'-mat', o.mat); sv(oid+'-lf', o.lf); sv(oid+'-sf', o.sf);
-  sv(oid+'-ukd', o.ukd); sv(oid+'-sv', o.sv); sv(oid+'-tw', o.tw); sv(oid+'-tv', o.tv);
+  sv(oid+'-ukd', o.ukd); sv(oid+'-sv', o.sv); sv(oid+'-kez', o.kez); sv(oid+'-ledc', o.ledc); sv(oid+'-tw', o.tw); sv(oid+'-tv', o.tv);
   sv(oid+'-tt', o.tt); sv(oid+'-ste', o.ste); sv(oid+'-lm', o.lm); sv(oid+'-kab', o.kab);
   sv(oid+'-ip', o.ip); sv(oid+'-beson', o.beson); sv(oid+'-mass', o.mass);
   sv(oid+'-prio', o.prio); sv(oid+'-kost', o.kost);
@@ -997,7 +999,7 @@ async function saveAufnahme() {
       ff:gv(oid+'-ff'), mat:gv(oid+'-mat'), lf:gv(oid+'-lf'), sf:gv(oid+'-sf'),
       uko:uko?uko.value:'', ukd:gv(oid+'-ukd'),
       lt:lt?lt.value:'',
-      sv:gv(oid+'-sv'), tw:gv(oid+'-tw'), tv:gv(oid+'-tv'), tt:gv(oid+'-tt'),
+      sv:gv(oid+'-sv'),kez:gv(oid+'-kez'),ledc:gv(oid+'-ledc'), tw:gv(oid+'-tw'), tv:gv(oid+'-tv'), tt:gv(oid+'-tt'),
       ste:gv(oid+'-ste'), lm:gv(oid+'-lm'), kab:gv(oid+'-kab'), ip:gv(oid+'-ip'),
       beson:gv(oid+'-beson'), mass:gv(oid+'-mass'), prio:gv(oid+'-prio'), kost:gv(oid+'-kost'),
       fotos:(photos[oid]||[]).map(p=>p.dataUrl),
@@ -1327,10 +1329,32 @@ async function generatePDF() {
 
     // labels under images
     bf(6.5,'normal');tc(...ASH);
-    doc.text('FOTO',ML+HALF/2,y+IH+5,{align:'center'});
+    doc.text('FOTO'+(fotos.length>1?' ('+fotos.length+' Fotos)':''),ML+HALF/2,y+IH+5,{align:'center'});
     doc.text('SKIZZE UNTERKONSTRUKTION',SX+HALF/2,y+IH+5,{align:'center'});
 
     y+=IH+9;
+
+    // ── ZUSÄTZLICHE FOTOS (kleine Thumbnails) ──
+    if(fotos.length>1){
+      const TW=42, TH=32, TGAP=4;
+      const maxPerRow=Math.floor(CW/(TW+TGAP));
+      const extraFotos=fotos.slice(1,Math.min(fotos.length,7)); // max 6 extra
+      let tx=ML, ty=y;
+      extraFotos.forEach((du,fi)=>{
+        if(fi>0 && fi%maxPerRow===0){ty+=TH+TGAP+2;tx=ML;}
+        fc(45,45,41);doc.roundedRect(tx,ty,TW,TH,1,1,'F');
+        try{
+          const fmt=du.startsWith('data:image/png')?'PNG':'JPEG';
+          doc.addImage(du,fmt,tx+1,ty+1,TW-2,TH-2,undefined,'FAST');
+        }catch(e){}
+        tx+=TW+TGAP;
+      });
+      const extraRows=Math.ceil(extraFotos.length/maxPerRow);
+      y+=extraRows*(TH+TGAP)+6;
+      bf(6.5,'normal');tc(...ASH);
+      doc.text('WEITERE FOTOS ('+extraFotos.length+')',ML,y-3);
+      y+=3;
+    }
 
     // ── MASSE (volle Breite, kompakte Tabelle) ──
     const breite=getF(o,'breite','bw','b');
@@ -1389,7 +1413,7 @@ async function generatePDF() {
     const trafoStr=trafoW?(trafoW+' W'+(trafoV?' / '+trafoV+' V':'')):null;
 
     let ry2=bar(C2X,y,COL,'LOGO & TECHNIK');
-    [['Logo-Typ',logotyp],['Strom',strom],['Trafo',trafoStr],['Trafo Typ',trafoTyp],['Steuerung',steuerung],['Leuchtmittel',leuchtm],['Kabelführung',kabel],['IP-Schutz',ip]].forEach(([lbl,val])=>{
+    [['Logo-Typ',logotyp],['Strom',strom],['Kabeleinlass',getF(o,'kez')],['LED Farbe',getF(o,'ledc')],['Trafo',trafoStr],['Trafo Typ',trafoTyp],['Steuerung',steuerung],['Leuchtmittel',leuchtm],['Kabelführung',kabel],['IP-Schutz',ip]].forEach(([lbl,val])=>{
       const h=row(C2X,ry2,COL,lbl,val,38);
       if(h)ry2+=h+3;
     });
@@ -1401,18 +1425,28 @@ async function generatePDF() {
     const mass=getF(o,'massnahmen','mass','mas');
     if(beson||mass){
       y=bar(ML,y,CW,'BESONDERHEITEN & MASSNAHMEN');
-      if(beson){
-        bf(8,'bold');tc(...ASH);doc.text('Besonderheiten:',ML+4,y);y+=6;
+      const drawText=(label,text,startY)=>{
+        let cy=startY;
+        // Check if we need a new page
+        if(cy > H-50){ doc.addPage(); fc(...DARK);doc.rect(0,0,W,H,'F'); cy=20; }
+        bf(8,'bold');tc(...ASH);doc.text(label,ML+4,cy);cy+=6;
         bf(8.5,'normal');tc(...CREAM);
-        const ls=doc.splitTextToSize(beson,CW-8);
-        doc.text(ls,ML+4,y);y+=ls.length*6+5;
-      }
-      if(mass){
-        bf(8,'bold');tc(...ASH);doc.text('Massnahmen:',ML+4,y);y+=6;
-        bf(8.5,'normal');tc(...CREAM);
-        const ls=doc.splitTextToSize(mass,CW-8);
-        doc.text(ls,ML+4,y);y+=ls.length*6+5;
-      }
+        const ls=doc.splitTextToSize(text,CW-8);
+        // Check again after splitting
+        if(cy+ls.length*6 > H-20){
+          const fitLines=Math.floor((H-25-cy)/6);
+          if(fitLines>0) doc.text(ls.slice(0,fitLines),ML+4,cy);
+          doc.addPage(); fc(...DARK);doc.rect(0,0,W,H,'F');
+          cy=20;
+          if(fitLines<ls.length) doc.text(ls.slice(fitLines),ML+4,cy);
+          cy+=Math.max(0,ls.length-fitLines)*6+5;
+        } else {
+          doc.text(ls,ML+4,cy);cy+=ls.length*6+5;
+        }
+        return cy;
+      };
+      if(beson) y=drawText('Besonderheiten:',beson,y);
+      if(mass)  y=drawText('Massnahmen:',mass,y);
       y+=2;
     }
 
@@ -1434,6 +1468,8 @@ async function generatePDF() {
     }
 
     // ── FOOTER ──
+    // If content is near bottom, ensure footer doesn't overlap
+    if(y > H-30) y = H-30;
     fc(20,20,18);doc.rect(0,H-13,W,13,'F');
     fc(...LIME);doc.rect(0,H-13,W,1,'F');
     bf(6.5,'normal');tc(...ASH);
